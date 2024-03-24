@@ -12,6 +12,8 @@ ACME_BIN_PATH=${BASE_ROOT}/acme.sh
 TEMP_PATH=${BASE_ROOT}/temp
 CRT_PATH_NAME=`cat ${CRT_BASE_PATH}/_archive/DEFAULT`
 CRT_PATH=${CRT_BASE_PATH}/_archive/${CRT_PATH_NAME}
+FIND_MAJORVERSION_FILE="/etc/VERSION"
+FIND_MAJORVERSION_STR="majorversion=\"7\""
 
 backupCrt () {
   echo 'begin backupCrt'
@@ -29,7 +31,8 @@ installAcme () {
   mkdir -p ${TEMP_PATH}
   cd ${TEMP_PATH}
   echo 'begin downloading acme.sh tool...'
-  ACME_SH_ADDRESS=`curl -L https://cdn.jsdelivr.net/gh/andyzhshg/syno-acme@master/acme.sh.address`
+  #ACME_SH_ADDRESS=`curl -L https://cdn.jsdelivr.net/gh/andyzhshg/syno-acme@master/acme.sh.address`
+  ACME_SH_ADDRESS=`cat ${BASE_ROOT}/acme.sh.address`  # use the link in the local file `acme.sh.address`
   SRC_TAR_NAME=acme.sh.tar.gz
   curl -L -o ${SRC_TAR_NAME} ${ACME_SH_ADDRESS}
   SRC_NAME=`tar -tzf ${SRC_TAR_NAME} | head -1 | cut -f1 -d"/"`
@@ -48,11 +51,16 @@ generateCrt () {
   source config
   echo 'begin updating default cert by acme.sh tool'
   source ${ACME_BIN_PATH}/acme.sh.env
-  ${ACME_BIN_PATH}/acme.sh --force --log --issue --dns ${DNS} --dnssleep ${DNS_SLEEP} -d "${DOMAIN}" -d "*.${DOMAIN}"
-  ${ACME_BIN_PATH}/acme.sh --force --installcert -d ${DOMAIN} -d *.${DOMAIN} \
-    --certpath ${CRT_PATH}/cert.pem \
-    --key-file ${CRT_PATH}/privkey.pem \
-    --fullchain-file ${CRT_PATH}/fullchain.pem
+  for d in ${DOMAIN//,/ }
+    do
+      domain_params="${domain_params} -d ${d}"
+    done
+  ${ACME_BIN_PATH}/acme.sh --register-account -m ${ACME_REG_ACCOUNT}
+  ${ACME_BIN_PATH}/acme.sh --force --log --issue --dns ${DNS} --dnssleep ${DNS_SLEEP} ${domain_params}
+  ${ACME_BIN_PATH}/acme.sh --force --installcert ${domain_params} \
+  --certpath ${CRT_PATH}/cert.pem \
+  --key-file ${CRT_PATH}/privkey.pem \
+  --fullchain-file ${CRT_PATH}/fullchain.pem
 
   if [ -s "${CRT_PATH}/cert.pem" ]; then
     echo 'done generateCrt'
@@ -68,18 +76,34 @@ generateCrt () {
 updateService () {
   echo 'begin updateService'
   echo 'cp cert path to des'
-  /bin/python2 ${BASE_ROOT}/crt_cp.py ${CRT_PATH_NAME}
+  if [ `grep -c "$FIND_MAJORVERSION_STR" $FIND_MAJORVERSION_FILE` -ne '0' ];then
+    echo "MajorVersion = 7, use system default python2"
+    python2 ${BASE_ROOT}/crt_cp.py ${CRT_PATH_NAME}
+  else
+    echo "MajorVersion < 7"
+    /bin/python2 ${BASE_ROOT}/crt_cp.py ${CRT_PATH_NAME}
+  fi
   echo 'done updateService'
 }
 
 reloadWebService () {
   echo 'begin reloadWebService'
   echo 'reloading new cert...'
-  /usr/syno/etc/rc.sysv/nginx.sh reload
-  echo 'relading Apache 2.2'
-  stop pkg-apache22
-  start pkg-apache22
-  reload pkg-apache22
+  if [ `grep -c "$FIND_MAJORVERSION_STR" $FIND_MAJORVERSION_FILE` -ne '0' ];then
+    echo "MajorVersion = 7"
+    synow3tool --gen-all && systemctl reload nginx
+  else
+    echo "MajorVersion < 7"
+    /usr/syno/etc/rc.sysv/nginx.sh reload
+  fi
+  if [ `grep -c "$FIND_MAJORVERSION_STR" $FIND_MAJORVERSION_FILE` -ne '0' ];then
+    echo "MajorVersion = 7, no need to reload apache"
+  else
+	echo 'relading Apache on DSM 6.x'
+	stop pkg-apache22
+	start pkg-apache22
+	reload pkg-apache22
+  fi  
   echo 'done reloadWebService'  
 }
 

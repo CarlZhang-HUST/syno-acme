@@ -1,7 +1,12 @@
 # 你主域名，如 baidu.com sina.com.cn 等
 export DOMAIN=your_domain
 
+# ACME Register Account 用于向 ZeroSSL.com 申请 CA
+# 详情见: https://github.com/acmesh-official/acme.sh/wiki/ZeroSSL.com-CA
+export ACME_REG_ACCCOUT=your_email@address
+
 # DNS类型，根据域名服务商而定
+# 配置说明详见: https://github.com/acmesh-official/acme.sh/wiki/dnsapi
 export DNS=dns_xxx
 
 # DNS API 生效等待时间 值(单位：秒)
@@ -11,6 +16,10 @@ export DNS_SLEEP=120
 # 阿里云 DNS=dns_ali
 export Ali_Key="LTqIA87hOKdjevsf5"
 export Ali_Secret="0p5EYueFNq501xnCPzKNbx6K51qPH2"
+
+# 腾讯云 DNS=dns_tencent
+export Tencent_SecretId="AKIDz81d2cd22cdcdc2dcd1cc1d1A"
+export Tencent_SecretKey="Gu5t9abcabcaabcbabcbbbcbcbbccbbcb"
 
 # Dnspod DNS=dns_dp
 export DP_Id="1234"
